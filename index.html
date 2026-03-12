@@ -217,11 +217,11 @@ function placeItems(pts,stage,rng){
 
   // Hearts on map: early levels slightly more than needed, late levels = exact (must find all)
   const diff=(stage.lvl-1)/49;
-  const extra=Math.max(0, Math.round(3-diff*3)); // lvl1: +3 extra, lvl20+: 0 extra
-  const totalOnMap=stage.heartsNeeded+extra;
+  const extra=Math.max(1, Math.round(4-diff*3)); // lvl1: +3 extra, lvl20+: 0 extra
+  const totalOnMap=stage.heartsNeeded+extra+1;
 
   // Spacing: hearts very sparse — min 300px early, 500px late
-  const minGap=Math.floor(300+diff*200); // 300→500px
+  const minGap=Math.floor(200+diff*100); // 300→500px
 
   const hearts=[];
   let lx=-999;
