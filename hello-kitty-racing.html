@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hello Kitty Racing ✨</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: linear-gradient(135deg, #ffe0f0, #ffc2e0);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Nunito', sans-serif;
+    overflow: hidden;
+  }
+
+  #gameWrapper {
+    position: relative;
+    width: 400px;
+    height: 600px;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(255,80,160,0.45), 0 0 0 4px #ff85c2;
+  }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 215, 238, 0.93);
+    backdrop-filter: blur(6px);
+    z-index: 10;
+    transition: opacity 0.35s ease;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2.6rem;
+    color: #d4005e;
+    text-shadow: 3px 3px 0 #ffaad4, 5px 5px 0 rgba(255,100,180,0.2);
+    margin-bottom: 6px;
+    text-align: center;
+    line-height: 1.15;
+    letter-spacing: 1px;
+  }
+
+  .subtitle {
+    font-size: 0.92rem;
+    color: #b03070;
+    margin-bottom: 30px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .kitty-icon {
+    font-size: 5.5rem;
+    margin-bottom: 14px;
+    animation: bounce 1.3s ease-in-out infinite;
+    filter: drop-shadow(0 4px 8px rgba(255,80,160,0.3));
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50%       { transform: translateY(-14px) rotate(3deg); }
+  }
+
+  .btn {
+    background: linear-gradient(135deg, #ff6eb4, #ff1a6e);
+    color: #fff;
+    border: none;
+    padding: 14px 44px;
+    border-radius: 50px;
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3rem;
+    cursor: pointer;
+    letter-spacing: 1px;
+    box-shadow: 0 6px 22px rgba(255,60,130,0.5), inset 0 1px 0 rgba(255,255,255,0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover  { transform: translateY(-3px) scale(1.04); box-shadow: 0 12px 30px rgba(255,60,130,0.55); }
+  .btn:active { transform: scale(0.96); }
+
+  #hud {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .hud-box {
+    background: rgba(255,255,255,0.88);
+    border: 2px solid #ff85c2;
+    border-radius: 30px;
+    padding: 4px 16px;
+    font-family: 'Fredoka One', cursive;
+    font-size: 1rem;
+    color: #cc005a;
+    white-space: nowrap;
+  }
+
+  .score-popup {
+    position: absolute;
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3rem;
+    color: #ff2d78;
+    pointer-events: none;
+    z-index: 6;
+    animation: popUp 0.8s ease forwards;
+    text-shadow: 1px 1px 0 #fff;
+    transform: translateX(-50%);
+  }
+  @keyframes popUp {
+    0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-50px) scale(1.4); }
+  }
+
+  #finalScore {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.7rem;
+    color: #ff1a6e;
+    margin-bottom: 4px;
+  }
+  #highScore {
+    font-size: 0.9rem;
+    color: #b03070;
+    margin-bottom: 26px;
+    font-weight: 800;
+  }
+
+  #levelBadge {
+    position: absolute;
+    top: 52px;
+    right: 14px;
+    background: rgba(255,255,255,0.85);
+    border: 2px solid #ffaacc;
+    border-radius: 20px;
+    padding: 2px 12px;
+    font-family: 'Fredoka One', cursive;
+    font-size: 0.8rem;
+    color: #cc005a;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  #hint {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: #e070b0;
+    font-weight: 700;
+    z-index: 5;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .star-bg { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .star {
+    position: absolute;
+    font-size: 1.3rem;
+    animation: twinkle 2.2s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: 0.25; transform: scale(0.85); }
+    50%      { opacity: 0.9;  transform: scale(1.15); }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameWrapper">
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+  <div id="hud">
+    <div class="hud-box">⭐ <span id="scoreText">0</span></div>
+    <div class="hud-box">🏆 <span id="bestText">0</span></div>
+  </div>
+  <div id="levelBadge">Lv.<span id="levelText">1</span></div>
+  <div id="hint">← → Phím mũi tên để lái &nbsp;|&nbsp; Cảm ứng: vuốt trái/phải</div>
+
+  <!-- Màn hình Start -->
+  <div class="overlay" id="startScreen">
+    <div class="star-bg" id="starBg"></div>
+    <div class="kitty-icon">🐱</div>
+    <h1>Hello Kitty<br>Racing!</h1>
+    <div class="subtitle">Thu thập 🎀💗 &nbsp;·&nbsp; Tránh 💧🪨</div>
+    <button class="btn" id="startBtn">🚗 Bắt đầu chơi!</button>
+  </div>
+
+  <!-- Màn hình Game Over -->
+  <div class="overlay hidden" id="gameOverScreen">
+    <div class="kitty-icon">😿</div>
+    <h1>Ôi không!</h1>
+    <div id="finalScore">Điểm: 0</div>
+    <div id="highScore">🏆 Kỷ lục: 0</div>
+    <button class="btn" id="restartBtn">🔄 Chơi lại!</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CANVAS & CONSTANTS
+// ═══════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = 400, H = 600;
+
+const ROAD_LEFT  = 80;
+const ROAD_RIGHT = 320;
+const ROAD_W     = 240;
+const LANE_X     = [128, 200, 272];
+
+// ═══════════════════════════════════════════════
+//  LOAD ẢNH TỪ FILE
+// ═══════════════════════════════════════════════
+const backgroundImage = new Image();
+backgroundImage.src = 'assets/images/background.jpg'; // Ảnh nền đường đua
+
+const carImage = new Image();
+carImage.src = 'assets/images/kitty_car.png';         // Ảnh xe Hello Kitty
+
+let bgImgLoaded  = false;
+let carImgLoaded = false;
+
+backgroundImage.onload  = () => { bgImgLoaded  = true; };
+backgroundImage.onerror = () => { bgImgLoaded  = false; };
+
+carImage.onload = function() {
+  carImgLoaded = true;
+  // Vẽ preview lên canvas khi ảnh đã tải xong
+  if (bgImgLoaded) {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height); // Vẽ nền
+  }
+  ctx.drawImage(carImage, 178, 465, 44, 70); // Vẽ xe Kitty
+};
+carImage.onerror = () => { carImgLoaded = false; };
+
+// ═══════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════
+let state     = 'start';
+let score     = 0;
+let highScore = 0;
+let frame     = 0;
+let speed     = 3;
+let level     = 1;
+let animId;
+
+let car = {};
+let dashes = [], items = [], obstacles = [], particles = [];
+let spawnTimer = 0;
+
+// ═══════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+let touchStartX = null;
+canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+canvas.addEventListener('touchmove', e => {
+  if (touchStartX === null) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  if      (dx >  12) { keys['ArrowRight'] = true;  keys['ArrowLeft']  = false; }
+  else if (dx < -12) { keys['ArrowLeft']  = true;  keys['ArrowRight'] = false; }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchend', () => {
+  keys['ArrowLeft'] = false; keys['ArrowRight'] = false; touchStartX = null;
+});
+
+// ═══════════════════════════════════════════════
+//  RESET
+// ═══════════════════════════════════════════════
+function reset() {
+  score = 0; frame = 0; speed = 3; level = 1; spawnTimer = 0;
+  car = { x: 200, y: 500, w: 44, h: 70, spd: 5 };
+  dashes = [];
+  for (let i = 0; i < 9; i++) dashes.push({ y: i * 75 });
+  items = []; obstacles = []; particles = [];
+  document.getElementById('levelText').textContent = '1';
+}
+
+// ═══════════════════════════════════════════════
+//  SPAWN
+// ═══════════════════════════════════════════════
+function spawnItem() {
+  const lane = LANE_X[Math.floor(Math.random() * 3)];
+  items.push({ x: lane, y: -30, type: Math.random() < 0.5 ? 'bow' : 'heart' });
+}
+function spawnObstacle() {
+  const lane = LANE_X[Math.floor(Math.random() * 3)];
+  obstacles.push({ x: lane, y: -40, type: Math.random() < 0.5 ? 'puddle' : 'rock', hit: false });
+}
+
+// ═══════════════════════════════════════════════
+//  PARTICLES & POPUP
+// ═══════════════════════════════════════════════
+function addParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 1.5 + Math.random() * 3.5;
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, color, life: 1, size: 3 + Math.random()*6 });
+  }
+}
+function showScorePopup(x, y, text) {
+  const el = document.createElement('div');
+  el.className = 'score-popup';
+  el.textContent = text;
+  el.style.left = (x / W * 100) + '%';
+  el.style.top  = (y / H * 100) + '%';
+  document.getElementById('gameWrapper').appendChild(el);
+  setTimeout(() => el.remove(), 820);
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW — NỀN
+// ═══════════════════════════════════════════════
+const flowerPos = [
+  {x:16,y:55},{x:48,y:185},{x:24,y:315},{x:12,y:460},{x:46,y:550},
+  {x:358,y:75},{x:336,y:215},{x:368,y:375},{x:344,y:495},{x:360,y:135}
+];
+
+function drawBg() {
+  if (bgImgLoaded) {
+    // Vẽ ảnh nền từ file assets/images/background.jpg
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+  } else {
+    // Fallback vẽ bằng canvas
+    const g = ctx.createLinearGradient(0,0,W,0);
+    g.addColorStop(0,'#ff80c0'); g.addColorStop(0.5,'#ffb3d9'); g.addColorStop(1,'#ff80c0');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#8a8a9a'; ctx.fillRect(ROAD_LEFT,0,ROAD_W,H);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(ROAD_LEFT,0);  ctx.lineTo(ROAD_LEFT,H);  ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ROAD_RIGHT,0); ctx.lineTo(ROAD_RIGHT,H); ctx.stroke();
+    flowerPos.forEach(f => {
+      ctx.font='17px serif';
+      ctx.fillText('🌸', f.x, (f.y + frame * speed * 0.28) % H);
+    });
+  }
+  // Vạch kẻ giữa đường (tạo hiệu ứng chuyển động)
+  ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.lineWidth=3; ctx.setLineDash([30,26]);
+  dashes.forEach(d => {
+    ctx.beginPath(); ctx.moveTo(200,d.y); ctx.lineTo(200,d.y+35); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+function updateDashes() {
+  dashes.forEach(d => { d.y += speed; if (d.y > H+10) d.y = -65; });
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW — XE
+// ═══════════════════════════════════════════════
+function drawCar() {
+  const { x, y, w, h } = car;
+
+  // Khói xả
+  if (keys['ArrowLeft'] || keys['ArrowRight']) {
+    ctx.fillStyle = 'rgba(210,200,230,0.4)';
+    for (let i=0;i<3;i++) {
+      ctx.beginPath();
+      ctx.arc(x+(Math.random()-.5)*10, y+h/2+5+i*6, 4-i*.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  if (carImgLoaded) {
+    // Vẽ ảnh xe từ file assets/images/kitty_car.png
+    ctx.drawImage(carImage, x - w/2, y - h/2, w, h);
+  } else {
+    // Fallback vẽ xe bằng canvas
+    ctx.fillStyle='#ff6eb4'; ctx.beginPath(); ctx.roundRect(x-w/2,y-h/2,w,h,9); ctx.fill();
+    ctx.fillStyle='#ffadd6'; ctx.beginPath(); ctx.roundRect(x-w/2+6,y-h/2+8,w-12,h*.42,7); ctx.fill();
+    ctx.fillStyle='#cceeff'; ctx.beginPath(); ctx.roundRect(x-w/2+9,y-h/2+10,w-18,16,4); ctx.fill();
+    ctx.fillStyle='#fffde0';
+    ctx.beginPath(); ctx.ellipse(x-w/2+8,y-h/2+28,5,3,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+w/2-8,y-h/2+28,5,3,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#222';
+    [[-w/2-4,-h/4],[w/2-4,-h/4],[-w/2-4,h/6],[w/2-4,h/6]].forEach(([dx,dy])=>{
+      ctx.beginPath(); ctx.roundRect(x+dx,y+dy,9,15,3); ctx.fill();
+    });
+    ctx.fillStyle='#fff5fa'; ctx.beginPath(); ctx.ellipse(x,y+h*.1,11,11,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ff6eb4';
+    ctx.beginPath(); ctx.moveTo(x-11,y-h*.05); ctx.lineTo(x-7,y-h*.2); ctx.lineTo(x-3,y-h*.05); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x+3,y-h*.05);  ctx.lineTo(x+7,y-h*.2); ctx.lineTo(x+11,y-h*.05); ctx.fill();
+    ctx.fillStyle='#222';
+    ctx.beginPath(); ctx.ellipse(x-4,y+h*.08,2,2.5,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+4,y+h*.08,2,2.5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ffaacc'; ctx.beginPath(); ctx.ellipse(x,y+h*.15,1.5,1,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ff2d78';
+    ctx.beginPath(); ctx.moveTo(x-12,y-h*.04); ctx.lineTo(x-7,y-h*.11); ctx.lineTo(x-7,y+.02*h); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x-2,y-h*.04);  ctx.lineTo(x-7,y-h*.11); ctx.lineTo(x-7,y+.02*h); ctx.fill();
+    ctx.fillStyle='#ff6eb4'; ctx.beginPath(); ctx.ellipse(x-7,y-h*.04,2.5,2.5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,45,120,0.3)'; ctx.beginPath(); ctx.roundRect(x-w/2+6,y+h*.22,w-12,4,2); ctx.fill();
+    ctx.fillStyle='#ff4444';
+    ctx.beginPath(); ctx.roundRect(x-w/2+5,y+h/2-8,10,6,2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x+w/2-15,y+h/2-8,10,6,2); ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW — VẬT PHẨM & CHƯỚNG NGẠI
+// ═══════════════════════════════════════════════
+function drawItems() {
+  ctx.textAlign='center';
+  items.forEach(it => { ctx.font='26px serif'; ctx.fillText(it.type==='bow'?'🎀':'💗',it.x,it.y+10); });
+  ctx.textAlign='left';
+}
+function drawObstacles() {
+  ctx.textAlign='center';
+  obstacles.forEach(ob => {
+    ctx.font=ob.type==='puddle'?'32px serif':'28px serif';
+    ctx.fillText(ob.type==='puddle'?'💧':'🪨',ob.x,ob.y+10);
+  });
+  ctx.textAlign='left';
+}
+
+// ═══════════════════════════════════════════════
+//  DRAW — PARTICLES
+// ═══════════════════════════════════════════════
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha=p.life; ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+// ═══════════════════════════════════════════════
+//  COLLISION
+// ═══════════════════════════════════════════════
+function checkCollisions() {
+  const cx=car.x, cy=car.y, cr=17;
+  items = items.filter(it => {
+    if (Math.hypot(cx-it.x,cy-it.y) < cr+14) {
+      score += 10;
+      addParticles(it.x,it.y,'#ff69b4',12);
+      showScorePopup(it.x,it.y-10,'+10 ⭐');
+      return false;
+    }
+    return true;
+  });
+  for (const ob of obstacles) {
+    if (ob.hit) continue;
+    if (Math.hypot(cx-ob.x,cy-ob.y) < cr+15) {
+      ob.hit=true; addParticles(cx,cy,'#88aaff',14); triggerGameOver(); return;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  GAME OVER
+// ═══════════════════════════════════════════════
+function triggerGameOver() {
+  state='gameover';
+  if (score>highScore) highScore=score;
+  document.getElementById('finalScore').textContent=`Điểm của bạn: ${score}`;
+  document.getElementById('highScore').textContent=`🏆 Kỷ lục: ${highScore}`;
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+  cancelAnimationFrame(animId);
+}
+
+// ═══════════════════════════════════════════════
+//  UPDATE
+// ═══════════════════════════════════════════════
+function update() {
+  frame++;
+  if (frame%300===0 && speed<11) { speed+=0.6; level++; document.getElementById('levelText').textContent=level; }
+  if (frame%28===0) score++;
+  if (keys['ArrowLeft'])  car.x=Math.max(ROAD_LEFT+car.w/2+5,  car.x-car.spd);
+  if (keys['ArrowRight']) car.x=Math.min(ROAD_RIGHT-car.w/2-5, car.x+car.spd);
+  items.forEach(it=>it.y+=speed); obstacles.forEach(ob=>ob.y+=speed);
+  items=items.filter(it=>it.y<H+50); obstacles=obstacles.filter(ob=>ob.y<H+50);
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.09;p.life-=0.038;});
+  particles=particles.filter(p=>p.life>0);
+  spawnTimer++;
+  const rate=Math.max(42,88-frame/55);
+  if (spawnTimer>=rate) { spawnTimer=0; Math.random()<0.56?spawnItem():spawnObstacle(); }
+  document.getElementById('scoreText').textContent=score;
+  document.getElementById('bestText').textContent=highScore;
+  checkCollisions();
+}
+
+// ═══════════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════════
+function gameLoop() {
+  ctx.clearRect(0,0,W,H);
+  drawBg(); updateDashes();
+  drawItems(); drawObstacles(); drawCar(); drawParticles();
+  update();
+  animId=requestAnimationFrame(gameLoop);
+}
+
+// ═══════════════════════════════════════════════
+//  BUTTONS
+// ═══════════════════════════════════════════════
+document.getElementById('startBtn').addEventListener('click',()=>{
+  document.getElementById('startScreen').classList.add('hidden');
+  reset(); state='playing'; gameLoop();
+});
+document.getElementById('restartBtn').addEventListener('click',()=>{
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  reset(); state='playing'; gameLoop();
+});
+
+// ═══════════════════════════════════════════════
+//  TRANG TRÍ START SCREEN
+// ═══════════════════════════════════════════════
+const starBg=document.getElementById('starBg');
+['✨','🌸','💕','⭐','🌟','🎀','💖','🌺'].forEach(emoji=>{
+  const s=document.createElement('span');
+  s.className='star'; s.textContent=emoji;
+  s.style.left=(8+Math.random()*82)+'%';
+  s.style.top=(5+Math.random()*88)+'%';
+  s.style.animationDelay=(Math.random()*2.5)+'s';
+  s.style.animationDuration=(1.6+Math.random()*1.4)+'s';
+  starBg.appendChild(s);
+});
+
+// ═══════════════════════════════════════════════
+//  IDLE PREVIEW (màn hình start)
+// ═══════════════════════════════════════════════
+(function idleDraw(){
+  if (state!=='start') return;
+  ctx.clearRect(0,0,W,H);
+  if (bgImgLoaded) {
+    ctx.drawImage(backgroundImage,0,0,canvas.width,canvas.height); // Vẽ nền
+  } else {
+    ctx.fillStyle='#ffb3d9'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#8a8a9a'; ctx.fillRect(ROAD_LEFT,0,ROAD_W,H);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(ROAD_LEFT,0);  ctx.lineTo(ROAD_LEFT,H);  ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ROAD_RIGHT,0); ctx.lineTo(ROAD_RIGHT,H); ctx.stroke();
+  }
+  if (carImgLoaded) {
+    ctx.drawImage(carImage,178,465,44,70); // Vẽ xe Kitty
+  } else {
+    ctx.font='30px serif'; ctx.textAlign='center';
+    ctx.fillText('🚗',200,510); ctx.textAlign='left';
+  }
+  requestAnimationFrame(idleDraw);
+})();
+</script>
+</body>
+</html>
