@@ -504,6 +504,19 @@
             return Math.random().toString(36).substring(2, 8).toUpperCase();
         }
 
+        function getPeerOptions() {
+            return {
+                debug: 0,
+                host: 'peerjs.com',
+                port: 443,
+                secure: true,
+                path: '/',
+                config: {
+                    iceServers: [{ urls: 'stun:stun.l.google.com:1939' }]
+                }
+            };
+        }
+
         function persistRoomCode(code) {
             const room = (code || '').trim().toUpperCase();
             if (!room) return;
@@ -532,6 +545,12 @@
             if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         }
 
+        function isTransientNetworkError(err) {
+            const type = (err && err.type) ? err.type : '';
+            const msg = (err && err.message) ? err.message : '';
+            return ['peer-unavailable', 'server-error', 'network', 'socket-error', 'unavailable-id'].includes(type) || msg.toLowerCase().includes('network');
+        }
+
         // Hẹn giờ thử kết nối lại (không thử liên tục dồn dập, có khoảng nghỉ giữa các lần)
         function scheduleReconnect(delayMs) {
             if (manualDisconnect) return;
@@ -543,6 +562,10 @@
         }
 
         function connectPeer() {
+            if (typeof Peer === 'undefined') {
+                statusText.textContent = '⚠️ Không tải được thư viện kết nối';
+                return;
+            }
             let code = (roomCodeInput.value || '').trim().toUpperCase();
             if (!code) {
                 code = restoreRoomCode() || generateRoomCode();
@@ -554,9 +577,57 @@
             clearReconnectTimer();
             teardownPeer();
             statusText.textContent = '⏳ Đang kết nối...';
+            startHostPeer(code);
+        }
 
-            // Thử làm "host" với ID = mã phòng
-            peer = new Peer('wb-' + code, { debug: 0 });
+        // Tạo peer đóng vai "client" và nối vào phòng theo mã code
+        function startClientPeer(code) {
+            if (typeof Peer === 'undefined') {
+                statusText.textContent = '⚠️ Không tải được thư viện kết nối';
+                return;
+            }
+            try {
+                peer = new Peer(undefined, getPeerOptions());
+            } catch (err) {
+                statusText.textContent = '🔄 Đang thử lại kết nối...';
+                setConnection(false);
+                if (!manualDisconnect) scheduleReconnect(1200);
+                return;
+            }
+            peer.on('open', function() {
+                tryClientConnect(code);
+            });
+            peer.on('disconnected', function() {
+                if (!manualDisconnect) {
+                    try { peer.reconnect(); } catch (e) { scheduleReconnect(3000); }
+                }
+            });
+            peer.on('error', function(err) {
+                if (isTransientNetworkError(err)) {
+                    statusText.textContent = '🔄 Mạng chưa ổn định, đang thử lại...';
+                    setConnection(false);
+                    if (!manualDisconnect) scheduleReconnect(1200);
+                } else {
+                    statusText.textContent = '❌ Lỗi kết nối';
+                    setConnection(false);
+                    if (!manualDisconnect) scheduleReconnect(3000);
+                }
+            });
+        }
+
+        function startHostPeer(code) {
+            if (typeof Peer === 'undefined') {
+                statusText.textContent = '⚠️ Không tải được thư viện kết nối';
+                return;
+            }
+            try {
+                peer = new Peer('wb-' + code, getPeerOptions());
+            } catch (err) {
+                statusText.textContent = '🔄 Đang thử lại kết nối...';
+                setConnection(false);
+                if (!manualDisconnect) scheduleReconnect(1200);
+                return;
+            }
 
             peer.on('open', function() {
                 isHost = true;
@@ -585,6 +656,10 @@
                     if (peer) peer.destroy();
                     isHost = false;
                     startClientPeer(code);
+                } else if (isTransientNetworkError(err)) {
+                    statusText.textContent = '🔄 Mạng chưa ổn định, đang thử lại...';
+                    setConnection(false);
+                    if (!manualDisconnect) scheduleReconnect(1200);
                 } else {
                     statusText.textContent = '❌ Lỗi: ' + err.type;
                     setConnection(false);
@@ -593,32 +668,20 @@
             });
         }
 
-        // Tạo peer đóng vai "client" và nối vào phòng theo mã code
-        function startClientPeer(code) {
-            peer = new Peer(undefined, { debug: 0 });
-            peer.on('open', function() {
-                tryClientConnect(code);
-            });
-            peer.on('disconnected', function() {
-                if (!manualDisconnect) {
-                    try { peer.reconnect(); } catch (e) { scheduleReconnect(3000); }
-                }
-            });
-            peer.on('error', function() {
-                statusText.textContent = '❌ Lỗi kết nối';
-                setConnection(false);
-                if (!manualDisconnect) scheduleReconnect(3000);
-            });
-        }
-
         function tryClientConnect(code) {
             if (manualDisconnect || !peer) return;
             conn = peer.connect('wb-' + code, { reliable: true });
             conn.on('open', wireConnection);
-            conn.on('error', function() {
-                statusText.textContent = '❌ Không thể kết nối tới phòng';
-                setConnection(false);
-                if (!manualDisconnect) scheduleReconnect(3000);
+            conn.on('error', function(err) {
+                if (isTransientNetworkError(err)) {
+                    statusText.textContent = '🔄 Mạng chưa ổn định, đang thử lại...';
+                    setConnection(false);
+                    if (!manualDisconnect) scheduleReconnect(1200);
+                } else {
+                    statusText.textContent = '❌ Không thể kết nối tới phòng';
+                    setConnection(false);
+                    if (!manualDisconnect) scheduleReconnect(3000);
+                }
             });
         }
 
@@ -633,16 +696,7 @@
                     statusText.textContent = '📡 Phòng ' + roomCode + ' — chờ thiết bị kia nối lại...';
                 } else {
                     // Peer đã chết hẳn -> mở lại làm host với đúng mã phòng cũ
-                    peer = new Peer('wb-' + roomCode, { debug: 0 });
-                    peer.on('open', function() {
-                        isHost = true;
-                        statusText.textContent = '📡 Phòng ' + roomCode + ' — chờ thiết bị kia nối lại...';
-                    });
-                    peer.on('connection', function(c) { conn = c; wireConnection(); });
-                    peer.on('disconnected', function() {
-                        if (!manualDisconnect) { try { peer.reconnect(); } catch (e) {} }
-                    });
-                    peer.on('error', function() { scheduleReconnect(3000); });
+                    startHostPeer(roomCode);
                 }
             } else {
                 if (peer && !peer.destroyed) {
